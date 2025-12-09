@@ -2,14 +2,15 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Forensic Scanner IO</title>
-    <script src="[https://cdn.tailwindcss.com](https://cdn.tailwindcss.com)"></script>
-    <script src="[https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js](https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js)"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
+    <!-- Add Google Generative AI Import -->
     <script type="importmap">
       {
         "imports": {
-          "@google/generative-ai": "[https://esm.run/@google/generative-ai](https://esm.run/@google/generative-ai)"
+          "@google/generative-ai": "https://esm.run/@google/generative-ai"
         }
       }
     </script>
@@ -19,10 +20,10 @@
         ::-webkit-scrollbar-track { background: #111; }
         ::-webkit-scrollbar-thumb { background: #444; border-radius: 3px; }
 
-        /* Sensor Colors (CSS Variables set via JS) */
+        /* Sensor Colors */
         :root {
-            --default-color: #666666; /* Neutral Grey Default */
-            --sensor-color: var(--default-color); /* Main UI color set to default initially */
+            --default-color: #666666; 
+            --sensor-color: var(--default-color);
         }
         
         body {
@@ -30,7 +31,11 @@
             color: #e0e0e0;
             font-family: 'Courier New', Courier, monospace;
             overflow: hidden;
-            touch-action: manipulation;
+            touch-action: none; /* Prevents bounce scroll on mobile */
+            
+            /* CRITICAL MOBILE FIX: Use dynamic viewport height */
+            height: 100vh;
+            height: 100dvh; 
         }
 
         .scan-line {
@@ -58,13 +63,11 @@
             transition: all 0.5s ease;
         }
 
-        /* HUD text only uses the sensor color when the sensor is active (post-scan) */
         .hud-text {
             text-shadow: 0 0 5px var(--sensor-color);
             color: var(--sensor-color);
         }
         
-        /* Sensor Indicator Dot: Always pulses, color defined by JS in renderSensorStatus */
         .sensor-indicator-dot {
             width: 8px;
             height: 8px;
@@ -121,21 +124,21 @@
         .hidden { display: none !important; }
     </style>
 </head>
-<body class="h-screen w-screen flex flex-col relative">
+<body class="w-full flex flex-col relative">
 
-    <!-- TOP BAR: SENSOR STATUS INDICATORS (AI Controlled) -->
-    <div class="h-16 bg-black/90 flex justify-center items-center px-2 z-20 border-b border-gray-800">
+    <!-- TOP BAR -->
+    <div class="h-16 bg-black/90 flex justify-center items-center px-2 z-20 border-b border-gray-800 shrink-0">
         <div id="sensorStatusContainer" class="flex gap-4">
-            <!-- Sensor indicators with names will be rendered here by JS -->
+            <!-- Sensors rendered via JS -->
         </div>
     </div>
 
-    <!-- MAIN VIEWSENSOR-INDICATOR VIEWER -->
-    <div class="flex-1 relative bg-black overflow-hidden flex justify-center items-center">
-        <!-- Live Video - MUTED added -->
+    <!-- MAIN VIEWPORT (Flex Grow to fill available space) -->
+    <div class="flex-1 relative bg-black overflow-hidden flex justify-center items-center min-h-0">
+        <!-- Live Video -->
         <video id="cameraStream" autoplay playsinline muted class="absolute w-full h-full object-cover transition-transform duration-200" style="transform-origin: center;"></video>
         
-        <!-- Freeze Frame Canvas (Hidden until capture) -->
+        <!-- Freeze Frame Canvas -->
         <canvas id="captureCanvas" class="absolute w-full h-full object-cover hidden"></canvas>
 
         <!-- Sensor Overlay -->
@@ -155,7 +158,7 @@
             <div id="scanLine" class="scan-line hidden"></div>
         </div>
         
-        <!-- MUTE BUTTON MOVED TO BOTTOM RIGHT OF VIEWFINDER -->
+        <!-- MUTE BUTTON -->
         <button onclick="toggleMute()" id="muteBtn" class="btn-mute absolute bottom-4 right-4 p-3 rounded-full bg-black/50 backdrop-blur-sm z-30 text-gray-500 hover:text-white transition-colors">
             <i class="fa-solid fa-volume-xmark text-xl"></i>
         </button>
@@ -171,12 +174,12 @@
         <div id="cameraError" class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 hidden p-4 bg-red-900/80 border border-red-500 rounded-lg text-white text-center">
             <i class="fa-solid fa-triangle-exclamation text-xl mb-2"></i>
             <p class="text-sm font-bold">CAMERA UNAVAILABLE</p>
-            <p class="text-xs text-gray-300">Please ensure permissions are granted and try again.</p>
+            <p class="text-xs text-gray-300">Please ensure permissions are granted.</p>
         </div>
     </div>
 
-    <!-- BOTTOM BAR: CONTROLS -->
-    <div class="bg-black/90 p-4 z-20 border-t border-gray-800 flex flex-col gap-3">
+    <!-- BOTTOM BAR (Shrink-0 to prevent crushing) -->
+    <div class="bg-black/90 p-4 z-20 border-t border-gray-800 flex flex-col gap-3 shrink-0 pb-safe">
         
         <!-- Zoom Slider -->
         <div class="flex items-center gap-3 px-2">
@@ -185,14 +188,12 @@
             <i class="fa-solid fa-magnifying-glass-plus text-gray-500 text-xs"></i>
         </div>
 
-        <!-- Camera Select Buttons (Generated dynamically) -->
-        <div id="cameraSelectContainer" class="flex gap-2 justify-center overflow-x-auto py-1">
-            <!-- Buttons injected here -->
-        </div>
+        <!-- Camera Select Buttons -->
+        <div id="cameraSelectContainer" class="flex gap-2 justify-center overflow-x-auto py-1"></div>
 
         <!-- Main Actions -->
         <div class="flex justify-between items-center mt-1">
-            <button onclick="document.getElementById('fileInput').click()" class="p-3 text-gray-400 hover:text-white flex flex-col items-center">
+            <button onclick="document.getElementById('fileInput').click()" class="p-3 text-gray-400 hover:text-white flex flex-col items-center w-16">
                 <i class="fa-solid fa-upload text-xl"></i>
                 <span class="text-[9px] mt-1">UPLOAD</span>
                 <input type="file" id="fileInput" accept="image/*" class="hidden" onchange="handleFileUpload(event)">
@@ -202,7 +203,7 @@
                 <div class="w-12 h-12 rounded-full bg-white"></div>
             </button>
 
-            <button onclick="toggleLibrary()" class="p-3 text-gray-400 hover:text-white flex flex-col items-center">
+            <button onclick="toggleLibrary()" class="p-3 text-gray-400 hover:text-white flex flex-col items-center w-16 relative">
                 <i class="fa-solid fa-box-archive text-xl"></i>
                 <span class="text-[9px] mt-1">ARCHIVE</span>
                 <span id="archiveCount" class="absolute top-0 right-2 bg-red-600 text-white text-[8px] px-1 rounded-full hidden">0</span>
@@ -211,52 +212,35 @@
     </div>
 
     <!-- RESULTS MODAL -->
-    <div id="resultsModal" class="fixed inset-0 bg-black z-50 transform translate-y-full transition-transform duration-300 flex flex-col">
-        
-        <!-- Modal Header -->
-        <div class="p-4 border-b border-gray-800 flex justify-between items-center bg-gray-900">
+    <div id="resultsModal" class="fixed inset-0 bg-black z-50 transform translate-y-full transition-transform duration-300 flex flex-col h-full">
+        <div class="p-4 border-b border-gray-800 flex justify-between items-center bg-gray-900 shrink-0">
             <h2 class="text-lg font-bold tracking-widest text-white"><i class="fa-solid fa-square-poll-vertical mr-2"></i>ANALYSIS COMPLETE</h2>
             <button onclick="closeResults()" class="text-gray-400 hover:text-white">
                 <i class="fa-solid fa-xmark text-2xl"></i>
             </button>
         </div>
-
-        <!-- Scrollable Content -->
         <div class="flex-1 overflow-y-auto p-4 space-y-6 pb-20">
-            
-            <!-- Snapshot Preview -->
             <div class="w-full h-48 bg-gray-800 rounded-lg overflow-hidden border border-gray-700 relative">
                 <img id="resultImage" class="w-full h-full object-cover opacity-80">
                 <div class="absolute bottom-0 left-0 bg-black/70 px-2 py-1 text-xs font-mono text-white w-full">
                     SENSOR: <span id="resultSensorType" class="text-blue-400 font-bold uppercase">MERCH</span>
                 </div>
             </div>
-
-            <!-- Primary Intelligence Card -->
             <div class="bg-gray-900/50 border border-gray-700 rounded-lg p-4">
                 <h3 class="text-sm text-gray-400 uppercase tracking-widest mb-3 border-b border-gray-800 pb-2">Primary Target Analysis</h3>
-                <div id="resultContent" class="space-y-3 font-mono text-sm">
-                    <!-- Dynamic content filled by JS -->
-                </div>
+                <div id="resultContent" class="space-y-3 font-mono text-sm"></div>
             </div>
-
-            <!-- Reference Database Matches -->
             <div>
                 <h3 class="text-sm text-gray-400 uppercase tracking-widest mb-3 flex justify-between items-center">
                     <span>Reference Database Matches</span>
                     <span class="text-[10px] bg-green-900 text-green-300 px-2 py-0.5 rounded">4 FOUND</span>
                 </h3>
-                
-                <div class="grid grid-cols-2 gap-2" id="referenceGrid">
-                    <!-- Clickable data card containers inserted here -->
-                </div>
-                
+                <div class="grid grid-cols-2 gap-2" id="referenceGrid"></div>
             </div>
-
         </div>
     </div>
     
-    <!-- IMAGE PREVIEW MODAL (Image View) -->
+    <!-- IMAGE PREVIEW MODAL -->
     <div id="imagePreviewModal" class="fixed inset-0 bg-black/90 z-[60] hidden flex items-center justify-center p-4" onclick="closeImagePreview()">
         <div class="relative w-full max-w-lg mx-auto bg-gray-900 rounded-lg p-4 shadow-xl" onclick="event.stopPropagation()">
             <button onclick="closeImagePreview()" class="absolute top-2 right-2 text-white bg-black/50 hover:bg-black/80 rounded-full p-2 z-10">
@@ -272,8 +256,8 @@
     </div>
 
     <!-- LIBRARY DRAWER -->
-    <div id="libraryDrawer" class="fixed inset-y-0 right-0 w-3/4 bg-gray-900 z-50 transform translate-x-full transition-transform duration-300 shadow-2xl border-l border-gray-700 flex flex-col">
-        <div class="p-4 border-b border-gray-800 flex justify-between items-center">
+    <div id="libraryDrawer" class="fixed inset-y-0 right-0 w-3/4 bg-gray-900 z-50 transform translate-x-full transition-transform duration-300 shadow-2xl border-l border-gray-700 flex flex-col h-full">
+        <div class="p-4 border-b border-gray-800 flex justify-between items-center shrink-0">
             <h2 class="text-white font-bold tracking-widest">ARCHIVES</h2>
             <button onclick="toggleLibrary()" class="text-white"><i class="fa-solid fa-chevron-right"></i></button>
         </div>
@@ -376,6 +360,8 @@
             try {
                 stream = await navigator.mediaDevices.getUserMedia(constraints);
                 video.srcObject = stream;
+                // Robust mobile video play
+                video.setAttribute('playsinline', ''); 
                 video.play().catch(e => console.error("Video play failed:", e)); 
                 
                 video.muted = true;
@@ -535,6 +521,7 @@
         async function analyzeImage(base64Image) {
             // !!! SECURITY RISK: REPLACE THE EMPTY STRING WITH YOUR API KEY !!!
             const apiKey = "AIzaSyDa6msAMrCKQSZR9fOLueLT0N9bUGZ6mCM"; 
+            
             if (!apiKey) {
                 console.warn("NO API KEY DETECTED. Analysis skipped.");
                 // Simulate success for UI testing if no key is present
@@ -555,12 +542,9 @@
 
                 const prompt = `
                     You are a Forensic AI Scanner.
-                    
                     TASK 1: Determine the single most appropriate sensor module for the visual content from this list: "merch", "bio", "pharma", or "control".
-                    
                     TASK 2: Perform forensic analysis based on the determined sensor type.
                     STRICT RULES: 1. If a PERSON is visible (full body or face): Analyze the person. ESTIMATE AGE. DETERMINE IF "WELL RESTED". IGNORE any held objects. 2. If a HAND is holding an object (no face): IGNORE the hand. ANALYZE THE OBJECT strictly. 3. Generate 10 distinct, highly specific search terms for Google Images to find references.
-                    
                     Provide output ONLY in JSON format: { "determinedSensor": "...", "subjectType": "...", "summary": "...", "details": [{...}], "searchTerms": "...", "referenceImages": [...] }
                 `;
 
@@ -639,18 +623,15 @@
 
             const refGrid = document.getElementById('referenceGrid');
             refGrid.innerHTML = (data.referenceImages || []).slice(0, 4).map((img, i) => {
-                
-                // --- GENERATE CUSTOM PLACEHOLDER IMAGE URL ---
                 const placeholderText = encodeURIComponent(`REF ${i+1}|${finalQuery.split(' ')[0]}`);
                 const placeholderUrl = `https://placehold.co/300x200/${determinedSensorConfig.color.substring(1)}/000000?text=${placeholderText}`;
-                
                 const simulatedScore = (90 + i * 2.1 + (Math.random() * 5)).toFixed(1);
 
                 return `
                     <div onclick="showImagePreview('${placeholderUrl}', 'Reference Match: ${img.desc}', '${simulatedScore}%')" 
                          class="bg-gray-800 rounded p-2 flex flex-col items-center justify-center text-center h-24 border border-gray-700 cursor-pointer hover:bg-gray-700 transition-all relative overflow-hidden">
                         
-                        <img src="${placeholderUrl}" onerror="this.onerror=null; this.src='[https://placehold.co/64x40/000000/ffffff?text=Ref+$](https://placehold.co/64x40/000000/ffffff?text=Ref+$){i+1}'" class="absolute inset-0 w-full h-full object-cover opacity-30">
+                        <img src="${placeholderUrl}" onerror="this.onerror=null; this.src='https://placehold.co/64x40/000000/ffffff?text=Ref+${i+1}'" class="absolute inset-0 w-full h-full object-cover opacity-30">
                         
                         <span class="text-[9px] text-white z-10 font-bold overflow-hidden line-clamp-2">${img.desc}</span>
                         <span class="text-[8px] text-green-500 mt-1 z-10">${simulatedScore}% MATCH</span>
@@ -759,4 +740,5 @@
     </script>
 </body>
 </html>
+
 
